@@ -138,13 +138,6 @@ static void MX_TIM2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-// usb cdc printf
-// int _write(int file, char *ptr, int len)
-// {
-//   CDC_Transmit_FS((uint8_t *)ptr, len);
-//   return len;
-// }
-
 // Basic delay function for TM1637 bit-banging
 void tm1637_delay_us(uint32_t us)
 {
@@ -161,8 +154,8 @@ void tm1637_dio_low(void) { HAL_GPIO_WritePin(TM1637_DIO_GPIO_Port, TM1637_DIO_P
 
 void tm1637_start(void)
 {
-  tm1637_clk_high();
   tm1637_dio_high(); // Ensure DIO is high before CLK high to DIO low transition for start
+  tm1637_clk_high();
   tm1637_delay_us(5);
   tm1637_dio_low();
   tm1637_delay_us(5);
@@ -172,7 +165,6 @@ void tm1637_start(void)
 void tm1637_stop(void)
 {
   tm1637_clk_low();
-  tm1637_delay_us(5);
   tm1637_dio_low();
   tm1637_delay_us(5);
   tm1637_clk_high();
@@ -195,19 +187,18 @@ uint8_t tm1637_write_byte_ack(uint8_t byte)
       tm1637_dio_low();
     }
     tm1637_delay_us(3);
-    byte >>= 1;
     tm1637_clk_high();
     tm1637_delay_us(3);
+    byte >>= 1;
   }
   // Wait for ACK
   tm1637_clk_low();
+  tm1637_dio_high(); // Release DIO
   tm1637_delay_us(5);
+  // uint8_t ack = HAL_GPIO_ReadPin(TM1637_DIO_GPIO_Port, TM1637_DIO_Pin); // Requires DIO to be input
   tm1637_clk_high();
   tm1637_delay_us(5);
   tm1637_clk_low();
-
-  // tm1637_dio_high(); // Release DIO
-  // uint8_t ack = HAL_GPIO_ReadPin(TM1637_DIO_GPIO_Port, TM1637_DIO_Pin); // Requires DIO to be input
   // return ack == 0; // ACK is low
   return 1; // Simplified: assume ACK ok
 }
@@ -227,98 +218,42 @@ void tm1637_display_segments_at_pos(uint8_t position_0_to_3, uint8_t segment_dat
   tm1637_stop();
 }
 
-// void tm1637_display_number(uint16_t number)
-// {                                                                             // Displays 0-99 for speed
-//   uint8_t digits[4] = {tm1637_segment_map[10], tm1637_segment_map[10], 0, 0}; // Blank, Blank, D1, D0
+void tm1637_display_number(uint16_t number)
+{                                                                             // Displays 0-99 for speed
+  uint8_t digits[4] = {tm1637_segment_map[10], tm1637_segment_map[10], 0, 0}; // Blank, Blank, D1, D0
 
-//   if (number > 99)
-//     number = 99; // Cap at 99 for two-digit display
+  if (number > 99)
+    number = 99; // Cap at 99 for two-digit display
 
-//   digits[2] = tm1637_segment_map[number / 10]; // Tens digit
-//   digits[3] = tm1637_segment_map[number % 10]; // Units digit
+  digits[2] = tm1637_segment_map[number / 10]; // Tens digit
+  digits[3] = tm1637_segment_map[number % 10]; // Units digit
 
-//   // If number is less than 10, blank the tens digit (optional)
-//   if (number < 10)
-//   {
-//     digits[2] = tm1637_segment_map[10]; // Blank
-//   }
-
-//   tm1637_start();
-//   tm1637_write_byte_ack(TM1637_CMD_SET_DATA); // Data command: write data to display register, auto increment address
-//   tm1637_stop();
-
-//   tm1637_start();
-//   tm1637_write_byte_ack(TM1637_CMD_SET_ADDR | 0x00); // Start at address 0 ( leftmost digit)
-//   for (uint8_t i = 0; i < 4; i++)
-//   {
-//     tm1637_write_byte_ack(digits[i]);
-//   }
-//   tm1637_stop();
-//   tm1637_set_brightness(7); // Ensure display is on with brightness
-// }
-
-// FUNGSI BARU untuk menampilkan kecepatan dan arah
-void tm1637_display_speed_direction(uint16_t speed, uint8_t motor_direction_flag)
-{
-  uint8_t display_segments[4]; // Array untuk menampung data segmen keempat digit
-
-  // Digit 0 (paling kiri): Arah putaran
-  // Asumsi: g_motor_direction = 1 berarti arah yang akan ditampilkan dengan '-'
-  //         g_motor_direction = 0 berarti arah lain (kosong atau simbol lain)
-  if (motor_direction_flag == 1)
-  { // Jika arah perlu ditampilkan sebagai minus
-    display_segments[0] = tm1637_segment_map[SEG_IDX_MINUS];
-  }
-  else
+  // If number is less than 10, blank the tens digit (optional)
+  if (number < 10)
   {
-    display_segments[0] = tm1637_segment_map[SEG_IDX_BLANK]; // Kosong untuk arah default
+    digits[2] = tm1637_segment_map[10]; // Blank
   }
 
-  // Digit 1, 2, 3 (tiga digit paling kanan): Kecepatan
-  // Batasi tampilan kecepatan hingga 999 jika MAX_SPEED_LEVEL Anda mendukungnya
-  if (speed > 999)
-  {
-    speed = 999; // Tampilkan maksimal 999
-  }
-
-  // Ekstrak digit kecepatan (0-999)
-  display_segments[1] = tm1637_segment_map[(speed / 100) % 10]; // Ratusan
-  display_segments[2] = tm1637_segment_map[(speed / 10) % 10];  // Puluhan
-  display_segments[3] = tm1637_segment_map[speed % 10];         // Satuan
-
-  // Kirim data segmen ke TM1637
   tm1637_start();
-  tm1637_write_byte_ack(TM1637_CMD_SET_DATA); // Perintah setting data: mode auto-increment address
+  tm1637_write_byte_ack(TM1637_CMD_SET_DATA); // Data command: write data to display register, auto increment address
   tm1637_stop();
 
   tm1637_start();
-  tm1637_write_byte_ack(TM1637_CMD_SET_ADDR | 0x00); // Set alamat awal ke digit paling kiri (0xC0)
+  tm1637_write_byte_ack(TM1637_CMD_SET_ADDR | 0x00); // Start at address 0 ( leftmost digit)
   for (uint8_t i = 0; i < 4; i++)
   {
-    tm1637_write_byte_ack(display_segments[i]);
+    tm1637_write_byte_ack(digits[i]);
   }
   tm1637_stop();
-
-  // Pastikan display menyala dengan brightness yang diinginkan (mungkin sudah di-set di tm1637_init)
-  // tm1637_set_brightness(7); // Baris ini bisa ada atau tidak, tergantung preferensi
+  tm1637_set_brightness(7); // Ensure display is on with brightness
 }
 
-// Modifikasi tm1637_init untuk menggunakan fungsi display baru
 void tm1637_init(void)
 {
   // GPIOs are configured by CubeMX
   tm1637_set_brightness(7); // Set brightness and turn display on
-  // Panggil fungsi display baru dengan nilai awal
-  // Asumsikan arah awal adalah 0 (tidak minus) dan kecepatan awal 0
-  tm1637_display_speed_direction(0, 0);
+  tm1637_display_number(0); // Display 0 initially
 }
-
-// void tm1637_init(void)
-// {
-//   // GPIOs are configured by CubeMX
-//   tm1637_set_brightness(7); // Set brightness and turn display on
-//   tm1637_display_number(0); // Display 0 initially
-// }
 
 void stepper_update_speed_timer(void)
 {
@@ -648,9 +583,9 @@ void save_settings_to_flash(void)
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
@@ -720,16 +655,18 @@ int main(void)
 
     if (g_motor_is_running)
     {
-      tm1637_display_speed_direction(g_current_speed_level, g_motor_direction);
+      //      tm1637_display_speed_direction(g_current_speed_level, g_motor_direction);
+      tm1637_display_number(g_current_speed_level);
       HAL_GPIO_WritePin(LED_BLUEPILL_GPIO_Port, LED_BLUEPILL_Pin, GPIO_PIN_SET); // turn on led
     }
     else
     {
-      tm1637_display_speed_direction(g_current_speed_level, g_motor_direction);
+      //      tm1637_display_speed_direction(g_current_speed_level, g_motor_direction);
+      tm1637_display_number(g_current_speed_level);
       HAL_GPIO_WritePin(LED_BLUEPILL_GPIO_Port, LED_BLUEPILL_Pin, GPIO_PIN_RESET);
     }
 
-    HAL_Delay(10); // Main loop delay - Accel/Decel timing is based on HAL_GetTick()
+    //    HAL_Delay(10); // Main loop delay - Accel/Decel timing is based on HAL_GetTick()
 
     /* USER CODE END WHILE */
 
@@ -739,9 +676,9 @@ int main(void)
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -749,8 +686,8 @@ void SystemClock_Config(void)
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
+   * in the RCC_OscInitTypeDef structure.
+   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
@@ -764,9 +701,8 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
@@ -785,10 +721,10 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief TIM2 Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief TIM2 Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_TIM2_Init(void)
 {
 
@@ -826,14 +762,13 @@ static void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
-
 }
 
 /**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief GPIO Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -847,10 +782,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, DIR_PIN_Pin|ENABLE_PIN_Pin|PULSE_PIN_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, DIR_PIN_Pin | ENABLE_PIN_Pin | PULSE_PIN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LED_BLUEPILL_Pin|TM1637_CLK_Pin|TM1637_DIO_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LED_BLUEPILL_Pin | TM1637_CLK_Pin | TM1637_DIO_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : BTN_SAVE_SETTINGS_Pin */
   GPIO_InitStruct.Pin = BTN_SAVE_SETTINGS_Pin;
@@ -859,21 +794,21 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(BTN_SAVE_SETTINGS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : DIR_PIN_Pin ENABLE_PIN_Pin PULSE_PIN_Pin */
-  GPIO_InitStruct.Pin = DIR_PIN_Pin|ENABLE_PIN_Pin|PULSE_PIN_Pin;
+  GPIO_InitStruct.Pin = DIR_PIN_Pin | ENABLE_PIN_Pin | PULSE_PIN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LED_BLUEPILL_Pin TM1637_CLK_Pin TM1637_DIO_Pin */
-  GPIO_InitStruct.Pin = LED_BLUEPILL_Pin|TM1637_CLK_Pin|TM1637_DIO_Pin;
+  GPIO_InitStruct.Pin = LED_BLUEPILL_Pin | TM1637_CLK_Pin | TM1637_DIO_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : BTN_SPEED_UP_Pin BTN_SPEED_DOWN_Pin BTN_DIR_Pin BTN_ENABLE_Pin */
-  GPIO_InitStruct.Pin = BTN_SPEED_UP_Pin|BTN_SPEED_DOWN_Pin|BTN_DIR_Pin|BTN_ENABLE_Pin;
+  GPIO_InitStruct.Pin = BTN_SPEED_UP_Pin | BTN_SPEED_DOWN_Pin | BTN_DIR_Pin | BTN_ENABLE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
@@ -970,9 +905,9 @@ void CDC_On_Receive(uint8_t *Buf, uint32_t Len)
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -984,14 +919,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
