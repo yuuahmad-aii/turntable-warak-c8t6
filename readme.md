@@ -5,7 +5,8 @@ Proyek ini adalah firmware untuk mikrokontroler STM32F103C8T6 (umumnya dikenal s
 <!-- [title](https://www.example.com) -->
 
 
-![turntable-warak (2).jpg](https://github.com/yuuahmad-aii/turntable-warak-c8t6/blob/ddb2357697330bfb17e6dda4644764bab31d2d37/turntable-warak%20(1).jpg)
+![turntable-warak (1).jpg](https://github.com/yuuahmad-aii/turntable-warak-c8t6/blob/ddb2357697330bfb17e6dda4644764bab31d2d37/turntable-warak%20(1).jpg)
+![turntable-warak (2).jpg](https://github.com/yuuahmad-aii/turntable-warak-c8t6/blob/6aa412e21622da010dca6b34cc4982bb0669dbf2/turntable-warak%20(2).jpg)
 
 ## Fitur Utama
 
